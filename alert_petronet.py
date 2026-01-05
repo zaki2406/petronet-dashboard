@@ -7,7 +7,7 @@ import pytz
 
 # -------- TELEGRAM CONFIG --------
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+CHAT_ID = '-5149116513'
 
 SYMBOL = "PETRONET.NS"
 IST = pytz.timezone("Asia/Kolkata")
