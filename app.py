@@ -1,6 +1,7 @@
 import yfinance as yf
 import streamlit as st
 import pandas as pd
+import pytz
 
 # ---------------- CONFIG ----------------
 st.set_page_config(
@@ -23,22 +24,28 @@ def load_data():
         period="20d",
         interval="15m",
         progress=False,
-        group_by="column"
+        auto_adjust=False
     )
 
-    # Flatten MultiIndex columns
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+    # ---- Normalize datetime (CRITICAL FIX) ----
+    if isinstance(df.index, pd.DatetimeIndex):
+        df = df.reset_index()
 
-    df = df.reset_index()
+    if 'Datetime' not in df.columns:
+        if 'Date' in df.columns:
+            df.rename(columns={'Date': 'Datetime'}, inplace=True)
+        elif 'index' in df.columns:
+            df.rename(columns={'index': 'Datetime'}, inplace=True)
 
-    # Ensure timezone awareness → convert to IST
+    df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+
+    # ---- Timezone handling ----
     if df['Datetime'].dt.tz is None:
         df['Datetime'] = df['Datetime'].dt.tz_localize('UTC')
 
     df['Datetime'] = df['Datetime'].dt.tz_convert('Asia/Kolkata')
 
-    # Force numeric columns
+    # ---- Force numeric columns ----
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -61,12 +68,12 @@ def load_data():
 
         daily_rows.append({
             'Date': pd.to_datetime(date).strftime('%d-%b'),
-            'Open': round(float(group.iloc[0]['Open']), 2),
-            'High': round(float(high_row['High']), 2),
+            'Open': round(group.iloc[0]['Open'], 2),
+            'High': round(high_row['High'], 2),
             'High Time': high_row['Time'],   # IST
-            'Low': round(float(low_row['Low']), 2),
+            'Low': round(low_row['Low'], 2),
             'Low Time': low_row['Time'],     # IST
-            'Close': round(float(group.iloc[-1]['Close']), 2),
+            'Close': round(group.iloc[-1]['Close'], 2),
             'Volume': int(group['Volume'].sum())
         })
 
@@ -99,9 +106,3 @@ st.line_chart(df.set_index('Date')['Close'])
 
 st.subheader("Daily Volume")
 st.bar_chart(df.set_index('Date')['Volume'])
-
-
-
-
-
-
