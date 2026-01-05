@@ -22,4 +22,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: python alert_petronet.py
+
