@@ -2,7 +2,7 @@ name: Petronet Telegram Alerts
 
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    - cron: "0,30 * * * *"
   workflow_dispatch:
 
 jobs:
