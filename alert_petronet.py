@@ -2,38 +2,19 @@ import yfinance as yf
 import pandas as pd
 import requests
 import os
-from datetime import datetime
 import pytz
 
-# -------- TELEGRAM CONFIG --------
-BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = '-5149116513'
-
+# ---------- CONFIG ----------
 SYMBOL = "PETRONET.NS"
 IST = pytz.timezone("Asia/Kolkata")
 
-STATE_FILE = "day_state.csv"
+BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+CHAT_ID = '-5149116513'
 
 
-def send_telegram(msg: str):
+def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": msg}
-    requests.post(url, json=payload, timeout=10)
-
-
-def load_state():
-    if os.path.exists(STATE_FILE):
-        return pd.read_csv(STATE_FILE)
-    return pd.DataFrame(columns=["date", "high", "low"])
-
-
-def save_state(date, high, low):
-    df = pd.DataFrame([{
-        "date": date,
-        "high": high,
-        "low": low
-    }])
-    df.to_csv(STATE_FILE, index=False)
+    requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
 
 
 def check_levels():
@@ -44,7 +25,7 @@ def check_levels():
         progress=False
     )
 
-    if df.empty:
+    if df.empty or len(df) < 3:
         return
 
     df = df.reset_index()
@@ -54,42 +35,28 @@ def check_levels():
         df["Datetime"] = df["Datetime"].dt.tz_localize("UTC")
     df["Datetime"] = df["Datetime"].dt.tz_convert(IST)
 
-    today = datetime.now(IST).date()
+    # Split last candle vs previous candles
+    last = df.iloc[-1]
+    prev = df.iloc[:-1]
 
-    # ---- SCALARS (IMPORTANT FIX) ----
-    high_so_far = float(df["High"].max())
-    low_so_far = float(df["Low"].min())
+    day_high_before = prev["High"].max()
+    day_low_before = prev["Low"].min()
 
-    state = load_state()
-
-    if not state.empty and state.iloc[0]["date"] == str(today):
-        last_high = float(state.iloc[0]["high"])
-        last_low = float(state.iloc[0]["low"])
-    else:
-        last_high = None
-        last_low = None
-
-    now_time = datetime.now(IST).strftime("%H:%M")
-
-    # ---- HIGH ALERT ----
-    if last_high is None or high_so_far > last_high:
-        send_telegram(
+    # ---------- HIGH BREAK ----------
+    if last["High"] > day_high_before:
+        send(
             f"📈 PETRONET LNG NEW DAY HIGH\n"
-            f"₹{high_so_far:.2f}\n"
-            f"Time: {now_time} IST"
+            f"₹{last['High']:.2f}\n"
+            f"Time: {last['Datetime'].strftime('%H:%M')} IST"
         )
-        last_high = high_so_far
 
-    # ---- LOW ALERT ----
-    if last_low is None or low_so_far < last_low:
-        send_telegram(
+    # ---------- LOW BREAK ----------
+    if last["Low"] < day_low_before:
+        send(
             f"📉 PETRONET LNG NEW DAY LOW\n"
-            f"₹{low_so_far:.2f}\n"
-            f"Time: {now_time} IST"
+            f"₹{last['Low']:.2f}\n"
+            f"Time: {last['Datetime'].strftime('%H:%M')} IST"
         )
-        last_low = low_so_far
-
-    save_state(str(today), last_high, last_low)
 
 
 if __name__ == "__main__":
